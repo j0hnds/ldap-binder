@@ -70,6 +70,12 @@ module LdapBinder
         yield conn
       end
     end
+
+    def as_user(login, password)
+      bind(dn_from_login(login), password) do | conn |
+        yield conn
+      end
+    end
     
     def search(search_criteria)
       found_user = nil
@@ -77,7 +83,7 @@ module LdapBinder
         conn.search(search_base,
                     LDAP::LDAP_SCOPE_SUBTREE,
                     ldap_user_search_criteria(search_criteria),
-                    %w{ cn uid destinationIndicator pwdChangedTime pwdFailureTime createTimestamp }) do | entry |
+                    %w{ cn uid destinationIndicator pwdChangedTime pwdHistory pwdFailureTime createTimestamp userPassword }) do | entry |
           found_user = entry.to_hash
         end
       end
@@ -91,6 +97,13 @@ module LdapBinder
         perform_user_bind(user_data, authentication_criteria)
       end
       user_data
+    end
+
+    def change_password(login, old_password, new_password)
+      as_user(login, old_password) do | conn |
+        entry = [ LDAP.mod(LDAP::LDAP_MOD_REPLACE, 'userPassword', [ prepare_password(new_password, create_salt(login)) ]) ]
+        conn.modify(dn_from_login(login), entry)
+      end
     end
 
     def add_user(user_info)

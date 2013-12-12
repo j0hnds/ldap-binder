@@ -99,8 +99,21 @@ module LdapBinder
       user_data
     end
 
+    def password_in_history?(pwd_history, new_password)
+      reused_pwd = pwd_history.detect do | pw_entry |
+        old_hash = pw_entry[pw_entry.index("{SSHA}")..-1]
+        old_salt = Base64.decode64(old_hash[6..-1])[-40..-1]
+        new_hash = prepare_password(new_password, old_salt)
+        old_hash == new_hash
+      end
+    end
+
     def change_password(login, old_password, new_password)
+      user_info = search(login: login) # get the data about the user
       as_user(login, old_password) do | conn |
+        # OK, successfully logged in, now let's make sure the new password has not
+        # already been used
+        raise "Password cannot be used again so soon" if password_in_history?(user_info['pwdHistory'], new_password)
         entry = [ LDAP.mod(LDAP::LDAP_MOD_REPLACE, 'userPassword', [ prepare_password(new_password, create_salt(login)) ]) ]
         conn.modify(dn_from_login(login), entry)
       end
@@ -241,7 +254,9 @@ module LdapBinder
 
     def prepare_password(password, salt=create_salt)
       pwdigest = Digest::SHA1.digest("#{password}#{salt}")
-      "{SSHA}" + Base64.encode64("#{pwdigest}#{salt}").chomp!
+      puts "PW Digest: #{pwdigest}"
+      puts "Salt: #{salt}"
+      "{SSHA}" + Base64.encode64("#{pwdigest}#{salt}").chomp!.tap { | s | puts "HASH = #{s}" }
     end
 
     def create_salt(login='default_login')

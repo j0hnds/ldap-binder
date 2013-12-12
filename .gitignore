@@ -46,3 +46,9 @@ pkg
 
 # For rubinius:
 #*.rbc
+
+# For RVM
+.rvmrc
+
+# For test script configuration
+scripts/config/ldap.yml

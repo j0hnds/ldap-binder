@@ -100,7 +100,7 @@ module LdapBinder
     end
 
     def password_in_history?(pwd_history, new_password)
-      reused_pwd = pwd_history.detect do | pw_entry |
+      pwd_history.detect do | pw_entry |
         old_hash = pw_entry[pw_entry.index("{SSHA}")..-1]
         old_salt = Base64.decode64(old_hash[6..-1])[-40..-1]
         new_hash = prepare_password(new_password, old_salt)
@@ -191,7 +191,9 @@ module LdapBinder
           filter = "(&#{filter}(businessCategory=#{search_criteria[:account_uuid]}))"
         end
         filter
-      else
+      elsif search_criteria.has_key?(:uuid)
+        "(uid=#{search_criteria[:uuid]})"
+      end
         raise "Invalid search criteria"
       end
     end

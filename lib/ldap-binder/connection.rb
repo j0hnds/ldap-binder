@@ -64,12 +64,16 @@ module LdapBinder
     ############################################################
     # Potential abstraction
     ############################################################
+
+    def as_manager
+      bind(current_configuration['manager-dn'], current_configuration['manager-pw']) do | conn |
+        yield conn
+      end
+    end
     
     def search(search_criteria)
       found_user = nil
-      # bind as manager
-      bind(current_configuration['manager-dn'], current_configuration['manager-pw']) do | conn |
-        puts "search_base: #{search_base}"
+      as_manager do | conn |
         conn.search(search_base,
                     LDAP::LDAP_SCOPE_SUBTREE,
                     ldap_user_search_criteria(search_criteria),
@@ -87,6 +91,10 @@ module LdapBinder
         perform_user_bind(user_data, authentication_criteria)
       end
       user_data
+    end
+
+    def add_user(user_info)
+      
     end
     
     ############################################################
@@ -126,7 +134,6 @@ module LdapBinder
       if @current_configuration.nil?
         raise "Unable to find configuration file: #{full_configuration_path}" unless File.exists?(full_configuration_path)
         full_config = YAML.load(File.open(full_configuration_path, "r"))
-        puts self.class.environment
         raise "No configuration found for environment: #{self.class.environment}" unless full_config.has_key?(self.class.environment)
         @current_configuration = full_config[self.class.environment]
       end

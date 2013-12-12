@@ -94,8 +94,53 @@ module LdapBinder
     end
 
     def add_user(user_info)
-      
+      dn = nil
+      uuid = nil
+      as_manager do | conn |
+        login = user_info[:login]
+        dn = dn_from_login(login)
+        uuid = create_unique_uuid(conn)
+        names = user_info[:name].split
+
+        new_entry = [
+                     LDAP.mod(LDAP::LDAP_MOD_ADD, 'objectClass', [ 'top', 'person', 'organizationalPerson', 'inetOrgPerson' ]),
+                     LDAP.mod(LDAP::LDAP_MOD_ADD, 'cn', [ login ]),
+                     LDAP.mod(LDAP::LDAP_MOD_ADD, 'sn', [ names.last ]),
+                     LDAP.mod(LDAP::LDAP_MOD_ADD, 'uid', [ uuid ]),
+                     LDAP.mod(LDAP::LDAP_MOD_ADD, 'userPassword', [ prepare_password(user_info[:password], create_salt(login)) ]),
+                    ]
+        new_entry << LDAP.mod(LDAP::LDAP_MOD_ADD, 'givenName', [ names.first ]) if names.size > 1
+        new_entry << LDAP.mod(LDAP::LDAP_MOD_ADD, 'mail', [ user_info[:email] ]) if user_info.has_key?(:email)
+        new_entry << LDAP.mod(LDAP::LDAP_MOD_ADD, 'description', [ user_info[:note] ]) if user_info.has_key?(:note)
+        new_entry << LDAP.mod(LDAP::LDAP_MOD_ADD, 'destinationIndicator', [ user_info[:salt] ]) if user_info.has_key?(:salt)
+        new_entry << LDAP.mod(LDAP::LDAP_MOD_ADD, 'ou', [ user_info[:account_uid] ]) if user_info.has_key?(:account_uid)
+        new_entry << LDAP.mod(LDAP::LDAP_MOD_ADD, 'businessCategory', [ user_info[:application] ]) if user_info.has_key?(:application)
+
+        conn.add(dn, new_entry)
+      end
+      { dn: dn, uuid: uuid }
     end
+
+    def dn_from_login(login)
+      "cn=#{login},#{search_base}"
+    end
+
+    def create_unique_uuid(conn)
+      loop do
+        uuid = SecureRandom.uuid
+        break uuid unless uuid_exists?(conn, uuid)
+      end
+    end
+
+    def uuid_exists?(conn, uuid)
+      found = false
+      conn.search(search_base,
+                  LDAP::LDAP_SCOPE_SUBTREE,
+                  "(uid=#{uuid})",
+                  %w{ uid }) { | entry | found = true }
+      found
+    end
+
     
     ############################################################
     # Potential abstraction
@@ -185,6 +230,11 @@ module LdapBinder
       pwdigest = Digest::SHA1.digest("#{password}#{salt}")
       "{SSHA}" + Base64.encode64("#{pwdigest}#{salt}").chomp!
     end
+
+    def create_salt(login='default_login')
+      Digest::SHA1.hexdigest("--#{Time.now.to_s}--#{login}--")
+    end
+
   end
 
 end

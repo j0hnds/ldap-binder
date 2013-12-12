@@ -1,5 +1,6 @@
 require 'singleton'
 require 'base64'
+require 'securerandom'
 require 'yaml'
 require 'ldap'
 require 'ldap-binder/connection'

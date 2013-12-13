@@ -83,7 +83,7 @@ module LdapBinder
         conn.search(search_base,
                     LDAP::LDAP_SCOPE_SUBTREE,
                     ldap_user_search_criteria(search_criteria),
-                    %w{ cn uid destinationIndicator pwdChangedTime pwdHistory pwdFailureTime createTimestamp userPassword }) do | entry |
+                    %w{ cn mail sn givenName description uid destinationIndicator pwdChangedTime pwdHistory pwdFailureTime createTimestamp }) do | entry |
           found_user = entry.to_hash
         end
       end
@@ -126,16 +126,15 @@ module LdapBinder
         login = user_info[:login]
         dn = dn_from_login(login)
         uuid = create_unique_uuid(conn)
-        names = user_info[:name].split
 
         new_entry = [
                      LDAP.mod(LDAP::LDAP_MOD_ADD, 'objectClass', [ 'top', 'person', 'organizationalPerson', 'inetOrgPerson' ]),
                      LDAP.mod(LDAP::LDAP_MOD_ADD, 'cn', [ login ]),
-                     LDAP.mod(LDAP::LDAP_MOD_ADD, 'sn', [ names.last ]),
+                     LDAP.mod(LDAP::LDAP_MOD_ADD, 'sn', [ user_info[:last] ]),
                      LDAP.mod(LDAP::LDAP_MOD_ADD, 'uid', [ uuid ]),
                      LDAP.mod(LDAP::LDAP_MOD_ADD, 'userPassword', [ prepare_password(user_info[:password], create_salt(login)) ]),
                     ]
-        new_entry << LDAP.mod(LDAP::LDAP_MOD_ADD, 'givenName', [ names.first ]) if names.size > 1
+        new_entry << LDAP.mod(LDAP::LDAP_MOD_ADD, 'givenName', [ user_info[:first] ]) if user_info.has_key?(:first)
         new_entry << LDAP.mod(LDAP::LDAP_MOD_ADD, 'mail', [ user_info[:email] ]) if user_info.has_key?(:email)
         new_entry << LDAP.mod(LDAP::LDAP_MOD_ADD, 'description', [ user_info[:note] ]) if user_info.has_key?(:note)
         new_entry << LDAP.mod(LDAP::LDAP_MOD_ADD, 'destinationIndicator', [ user_info[:salt] ]) if user_info.has_key?(:salt)
@@ -145,6 +144,55 @@ module LdapBinder
         conn.add(dn, new_entry)
       end
       { dn: dn, uuid: uuid }
+    end
+
+    def update_user(user_attributes)
+      user_info = search(user_attributes)
+      raise "User not found. Cannot update attributes: #{user_attributes}" if user_info.nil?
+
+      as_manager do | conn |
+        new_entry = []
+
+        update_entry(new_entry, user_info, user_attributes, 'givenName', :first)
+        update_entry(new_entry, user_info, user_attributes, 'sn', :last)
+        update_entry(new_entry, user_info, user_attributes, 'mail', :email)
+        update_entry(new_entry, user_info, user_attributes, 'description', :note)
+
+        if user_attributes.has_key?(:password)
+          # A little different. If the password is not present, we don't do anything. If it
+          # is, we replace it with the new one.
+          new_entry << LDAP.mod(LDAP::LDAP_MOD_REPLACE, 'userPassword', [ prepare_password(user_attributes[:password], create_salt(user_attributes[:login])) ])
+        end
+        
+        conn.modify(user_info['dn'].first, new_entry)
+
+        # Now take care of modifying the login if necessary
+        if user_attributes.has_key?(:login)
+          if user_attributes[:login] != user_info['cn'].first
+            # Ugh. They want to change the login. Losers.
+            conn.modrdn(user_info['dn'].first,
+                        "cn=#{user_attributes[:login]}",
+                        true) # delete the old RDN
+          end
+        end
+
+      end
+    end
+
+    def update_entry(entry, ldap_attrs, user_attrs, ldap_key, user_key)
+      if user_attrs.has_key?(user_key)
+        if ldap_attrs.has_key?(ldap_key)
+          if user_attrs[user_key] != ldap_attrs[ldap_key].first
+            entry << LDAP.mod(LDAP::LDAP_MOD_REPLACE, ldap_key, [ user_attrs[user_key] ])
+          end
+        else
+          entry << LDAP.mod(LDAP::LDAP_MOD_ADD, ldap_key, [ user_attrs[user_key] ])
+        end
+      else
+        if ldap_attrs.has_key?(ldap_key)
+          entry << LDAP.mod(LDAP::LDAP_MOD_DELETE, ldap_key ) # , [ user_attrs[user_key] ])
+        end
+      end
     end
 
     def dn_from_login(login)
@@ -183,7 +231,9 @@ module LdapBinder
     private
 
     def ldap_user_search_criteria(search_criteria)
-      if search_criteria.has_key?(:login)
+      if search_criteria.has_key?(:uuid)
+        "(uid=#{search_criteria[:uuid]})"
+      elsif search_criteria.has_key?(:login)
         "cn=#{search_criteria[:login]}"
       elsif search_criteria.has_key?(:token)
         filter = "(userPassword=#{search_criteria[:token]})"
@@ -191,9 +241,7 @@ module LdapBinder
           filter = "(&#{filter}(businessCategory=#{search_criteria[:account_uuid]}))"
         end
         filter
-      elsif search_criteria.has_key?(:uuid)
-        "(uid=#{search_criteria[:uuid]})"
-      end
+      else
         raise "Invalid search criteria"
       end
     end

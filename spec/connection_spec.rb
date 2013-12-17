@@ -90,14 +90,14 @@ describe LdapBinder::Connection do
 
     end
 
-    context '::conn' do
+    context '::mgr' do
 
       it "should return a singleton instance, but only the first time" do
         m_instance = double(LdapBinder::Connection)
         LdapBinder::Connection.should_receive(:instance).exactly(1).times.and_return(m_instance)
 
-        expect(LdapBinder::Connection.conn).to be(m_instance)
-        expect(LdapBinder::Connection.conn).to be(m_instance)
+        expect(LdapBinder::Connection.mgr).to be(m_instance)
+        expect(LdapBinder::Connection.mgr).to be(m_instance)
       end
 
     end

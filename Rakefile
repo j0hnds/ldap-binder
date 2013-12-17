@@ -1,3 +1,4 @@
+# -*- ruby -*-
 # encoding: utf-8
 
 require 'rubygems'
@@ -19,8 +20,8 @@ Jeweler::Tasks.new do |gem|
   gem.license = "MIT"
   gem.summary = %Q{Facilitates LDAP binding}
   gem.description = %Q{Provides a high-level abstraction for LDAP binding}
-  gem.email = "dave.sieh@providigm.com"
-  gem.authors = ["Dave"]
+  gem.email = "dj0hnve@gmail.com"
+  gem.authors = ["Dave Sieh"]
   # dependencies defined in Gemfile
 end
 Jeweler::RubygemsDotOrgTasks.new
@@ -38,7 +39,7 @@ end
 
 task :default => :spec
 
-require 'rake/rdoctask'
+require 'rdoc/task'
 Rake::RDocTask.new do |rdoc|
   version = File.exist?('VERSION') ? File.read('VERSION') : ""
 

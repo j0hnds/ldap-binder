@@ -266,10 +266,16 @@ describe LdapBinder::TestUserActions do
 
         m_conn = double("LDAP::Connection")
 
-        Digest::SHA1.
-          should_receive(:hexdigest).
-          with("--the_salt--abc123--").
-          and_return('hashed_password')
+        cut.
+          should_receive(:custom_password_hasher).
+          and_return do
+            double("Call").tap do | lcall |
+            lcall.
+              should_receive(:call).
+              with('abc123', 'the_salt').
+              and_return('hashed_password')
+          end
+        end
 
         cut.
           should_receive(:bind).
@@ -291,10 +297,16 @@ describe LdapBinder::TestUserActions do
           'destinationIndicator' => [ 'the_salt' ]
         }
 
-        Digest::SHA1.
-          should_receive(:hexdigest).
-          with("--the_salt--abc123--").
-          and_return('hashed_password')
+        cut.
+          should_receive(:custom_password_hasher).
+          and_return do
+            double("Call").tap do | lcall |
+            lcall.
+              should_receive(:call).
+              with('abc123', 'the_salt').
+              and_return('hashed_password')
+          end
+        end
 
         cut.
           should_receive(:bind).

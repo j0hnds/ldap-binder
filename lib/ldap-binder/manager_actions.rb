@@ -6,7 +6,7 @@ module LdapBinder
     # If you want more/different attributes returned from a search, add/remove
     # attr names here.
     #
-    SEARCH_RETURN_ATTRS = %w{ cn mail sn givenName description uid destinationIndicator pwdChangedTime pwdHistory pwdFailureTime createTimestamp, ou }
+    SEARCH_RETURN_ATTRS = %w{ cn mail sn givenName description uid destinationIndicator pwdChangedTime pwdHistory pwdFailureTime createTimestamp ou businessCategory }
 
     #
     # The attribute mappings for users
@@ -169,6 +169,29 @@ module LdapBinder
         end
       end
       all_dns
+    end
+
+    def link_user(user_ident, link_to)
+      user_info = user_search(user_ident)
+      raise UserNotFoundError.new(user_ident), "Cannot find user to link" if user_info.nil?
+      dn = user_info['dn'].first
+      uuid = user_info['uid'].first
+
+      account = link_to[:account_uid]
+      application = link_to[:application_uid]
+
+      if account || application
+        # No point in doing anything unless at least one of the two
+        # is set to something
+        entry = []
+        entry << LDAP.mod(LDAP::LDAP_MOD_ADD, 'businessCategory', [ application ]) unless application.nil?
+        entry << LDAP.mod(LDAP::LDAP_MOD_ADD, 'ou', [ account ]) unless account.nil?
+        as_manager do | conn |
+          conn.modify(dn, entry)
+        end
+                          
+      end
+      { dn: dn, uuid: uuid }
     end
 
     def delete_user(user_ident)

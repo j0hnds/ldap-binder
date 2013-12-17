@@ -86,7 +86,7 @@ module LdapBinder
       if user_data.has_key?('destinationIndicator')
         # Has salt. Must be dealing with old password hash model
         salt = user_data['destinationIndicator'].first
-        encrypted_password = Digest::SHA1.hexdigest("--#{salt}--#{password}--")
+        encrypted_password = custom_password_hasher.call(password, salt)
         bind(dn, encrypted_password) do | conn |
           update_entry_to_new_password_type(conn, dn, password, salt)
         end

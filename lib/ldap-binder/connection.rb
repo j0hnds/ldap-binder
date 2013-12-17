@@ -6,6 +6,8 @@ module LdapBinder
     include UserActions    # For actions performed by users
     include CryptoSupport  # Some crypto support methods
 
+    attr_accessor :custom_password_hasher
+
     # Configuration hash must look like:
     #
     # {
@@ -26,6 +28,7 @@ module LdapBinder
     DEFAULT_CONFIG_PATH = "config/ldap.yml"
     DEFAULT_CONFIG_BASE_PATH = "."
     DEFAULT_ENVIRONMENT = 'development'
+    DEFAULT_CUSTOM_PASSWORD_HASHER = ->(password, salt) { Digest::SHA1.hexdigest("--#{salt}--#{password}--") }
 
     AUTH_STRATEGIES = [
                        { valid: ->(criteria) { criteria.has_key?(:login) && criteria.has_key?(:password) },
@@ -54,6 +57,10 @@ module LdapBinder
         @mgr ||= self.instance
       end
 
+    end
+
+    def initialize
+      @custom_password_hasher = DEFAULT_CUSTOM_PASSWORD_HASHER
     end
 
     def ldap_connection

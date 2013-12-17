@@ -51,6 +51,22 @@ result = LdapBinder::Connection.mgr.add_user user_info
 glorias_uuid = result[:uuid]
 puts result.inspect
 
+puts "Adding 'julio' user..."
+user_info = {
+  login: 'julio',
+  last: 'Gonzales',
+  password: '2b86935982d6f79ad2b99d519bd00ea987e6c2bb',
+  salt: '123fe24c097387f4dd58a90ab767bf403b0d0666',
+  first: 'Julio',
+  email: 'julio@gmail.com',
+  note: 'From run_all script',
+  account_uid: 'account_1',
+  application_uid: 'abaqis'
+}
+result = LdapBinder::Connection.mgr.add_user user_info
+glorias_uuid = result[:uuid]
+puts result.inspect
+
 puts "done."
 
 # Can we find the user we just added?
@@ -64,6 +80,12 @@ puts "Updating user..."
 result = LdapBinder::Connection.mgr.update_user login: 'joe', last: 'Einstein'
 puts result.inspect
 puts "done."
+
+# Create a link to application and account to user
+puts "Linking user..."
+result = LdapBinder::Connection.mgr.link_user({ login: 'joe' }, { application_uid: 'EmpSat', account_uid: 'account_6' })
+puts result.inspect
+puts 'done.'
 
 # Can we unlink gloria?
 puts "Unlinking gloria..."
@@ -80,6 +102,12 @@ puts "done."
 # Can we authenticate as joe?
 puts "Authenticating joe"
 result = LdapBinder::Connection.mgr.authenticate login: 'joe', password: 'Broncos2014'
+puts result.inspect
+puts "done"
+
+# Can we authenticate as julio? (custom password)
+puts "Authenticating julio"
+result = LdapBinder::Connection.mgr.authenticate login: 'julio', password: 'Broncos2014'
 puts result.inspect
 puts "done"
 

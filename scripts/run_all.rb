@@ -2,6 +2,8 @@
 $: << "../lib"
 require 'ldap-binder'
 
+all_uuids = []
+
 # Clean everything up; pretty dangerous command...
 puts "Deleting all users..."
 LdapBinder::Connection.mgr.delete_all_users
@@ -20,6 +22,7 @@ user_info = {
   application_uid: 'abaqis'
 }
 result = LdapBinder::Connection.mgr.add_user user_info
+all_uuids << result[:uuid]
 puts result.inspect
 
 puts "Adding 'harriet' user..."
@@ -34,6 +37,7 @@ user_info = {
   application_uid: 'abaqis'
 }
 result = LdapBinder::Connection.mgr.add_user user_info
+all_uuids << result[:uuid]
 puts result.inspect
 
 puts "Adding 'gloria' user..."
@@ -48,6 +52,7 @@ user_info = {
   application_uid: 'abaqis'
 }
 result = LdapBinder::Connection.mgr.add_user user_info
+all_uuids << result[:uuid]
 glorias_uuid = result[:uuid]
 puts result.inspect
 
@@ -64,7 +69,8 @@ user_info = {
   application_uid: 'abaqis'
 }
 result = LdapBinder::Connection.mgr.add_user user_info
-glorias_uuid = result[:uuid]
+all_uuids << result[:uuid]
+julio_uuid = result[:uuid]
 puts result.inspect
 
 puts "done."
@@ -116,3 +122,17 @@ puts "Changing Joe's password..."
 result = LdapBinder::Connection.mgr.change_password 'joe', 'Broncos2014', 'Sandy2012'
 puts result.inspect
 puts "done."
+
+# Return all users with uuids
+puts "Returning all users by uuid"
+result = LdapBinder::Connection.mgr.all_uuids(all_uuids)
+puts result.inspect
+
+# Is the email available?
+puts "Checking for email availability..."
+# First, with a uuid
+result = LdapBinder::Connection.mgr.unique_attribute_available?(julio_uuid, 'mail', 'julio@gmail.com')
+puts result
+# Now, without a uuid
+result = LdapBinder::Connection.mgr.unique_attribute_available?(nil, 'mail', 'julio@gmail.com')
+puts result

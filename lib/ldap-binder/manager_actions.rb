@@ -35,6 +35,7 @@ module LdapBinder
     # 4. :token and :account_uid - Single signon token and account identifier 
     #                               (ldap: 'userPassword' - clear text and
     #                                ldap: 'businessCategory')
+    # 5. :email - User's email address
     #
     # Returns a hash of the users attributes (see SEARCH_RETURN_ATTRS) or nil
     # if the user isn't found.
@@ -50,6 +51,39 @@ module LdapBinder
         end
       end
       found_user
+    end
+
+    def unique_attribute_available?(uuid, attr_name, attr_value)
+      # (mail=julio@gmail.com)
+      # or (if uuid is not nil)
+      # (&(!(uid=d109226f-80cf-4cbe-b732-4bce59335f1b))(mail=julio@gmail.com))
+      available = true
+      attr_filter = "(#{attr_name}=#{attr_value})"
+      filter = uuid.nil? ? attr_filter : "(&(!(uid=#{uuid}))#{attr_filter})"
+      as_manager do | conn |
+        conn.search(user_root_dn,
+                    LDAP::LDAP_SCOPE_SUBTREE,
+                    filter,
+                    %w{ uid }) do | entry |
+          available = false # Anything found means the value is not available
+        end
+      end
+      available
+    end
+
+    def all_uuids(uuids)
+      uid_criteria = uuids.inject('') { | a, uuid | a << "(uid=#{uuid})" }
+      any_uid = "(|#{uid_criteria})"
+      users = []
+      as_manager do | conn |
+        conn.search(user_root_dn,
+                    LDAP::LDAP_SCOPE_SUBTREE,
+                    any_uid,
+                    SEARCH_RETURN_ATTRS) do | entry |
+          users << entry.to_hash
+        end
+      end
+      users
     end
 
     #
@@ -216,8 +250,6 @@ module LdapBinder
       user_info = user_search(uuid: uuid)
       raise UserNotFoundError.new(uuid: uuid), "Cannot find user to unlink" if user_info.nil?
       
-      # return user_info if user_info['ou'].nil? || user_info['businessCategory'].nil?
-
       dn = user_info['dn'].first
       
       ldap_accounts = user_info['ou'].nil? ? [] : user_info['ou']
@@ -277,6 +309,8 @@ module LdapBinder
           filter = "(&#{filter}(businessCategory=#{search_criteria[:account_uid]}))"
         end
         filter
+      elsif search_criteria.has_key?(:email)
+        "(mail=#{search_criteria[:email]})"
       else
         raise "Invalid search criteria"
       end
@@ -355,13 +389,6 @@ module LdapBinder
 
       entry          
     end
-
-    # def add_attribute_entries(entry, user_attributes)
-    #   non_empty_attributes(user_attributes).each do | attr, value |
-    #     next unless USER_ATTR_MAPPING.has_key?(attr)
-    #     entry << LDAP.mod(LDAP::LDAP_MOD_ADD, USER_ATTR_MAPPING[attr][:ldap], [ user_attributes[attr] ])
-    #   end
-    # end
 
   end
 

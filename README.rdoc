@@ -122,6 +122,39 @@ Example:
 
   user_info = LdapBinder::Connection.mgr.user_search login: 'joe'
 
+==== unique_attribute_available?
+
+This method allows you to check the user tree to see if an attribute has been used on
+a user. You would use it to check to see if a login or email (for example) is available.
+
+It takes three parameters:
+
+* uuid - The unique user id to be excluded from the search. If nil, all user entries are searched
+* attr_name - The name of the LDAP attribute whose value is to be searched (e.g. 'cn' or 'mail').
+* attr_value - The value to search for
+
+Returns false if the attribute value has been used by another user, otherwise, returns true.
+
+Example:
+
+  require 'ldap-binder'
+
+  # Search all users
+  result = LdapBinder::Connection.mgr.unique_attribute_available?(nil, 'mail', 'joe@gmail.com')
+
+  # Search all users except the one with the uuid
+  result = LdapBinder::Connection.mgr.unique_attribute_available?('d109226f-80cf-4cbe-b732-4bce59335f1b', 'mail', 'joe@gmail.com')
+
+==== all_uuids
+
+This method returns the user information for all the uuids in the specified array.
+
+Example:
+
+  require 'ldap-binder'
+
+  users = LdapBinder::Connection.mgr.all_uuids([ 'd109226f-80cf-4cbe-b732-4bce59335f1b', 'd109226f-80cf-4cbe-b732-4bce59335f1c' ])
+
 ==== add_user
 
 The add_user method takes a hash of the attributes to be associated with the new user and

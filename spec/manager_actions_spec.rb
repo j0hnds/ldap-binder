@@ -10,6 +10,60 @@ describe LdapBinder::TestManagerActions do
 
   context 'Public Methods' do
 
+    context '#unique_attribute_available?' do
+
+      it "should return false if attribute value exists on any other user's entry" do
+        m_conn = double("LDAP::Connection")
+        m_conn.
+          should_receive(:search).
+          with('ou=users,dc=com', LDAP::LDAP_SCOPE_SUBTREE, '(mail=joe@gmail.com)', %w{ uid }).
+          and_yield({})
+
+        cut.should_receive(:as_manager).and_yield(m_conn)
+        cut.stub(:user_root_dn).and_return("ou=users,dc=com")
+               
+        expect(cut.unique_attribute_available?(nil, 'mail', 'joe@gmail.com')).to be_false
+      end
+
+      it "should return true if attribute does not exist on any other user's entry" do
+        m_conn = double("LDAP::Connection")
+        m_conn.
+          should_receive(:search).
+          with('ou=users,dc=com', LDAP::LDAP_SCOPE_SUBTREE, '(mail=joe@gmail.com)', %w{ uid })
+
+        cut.should_receive(:as_manager).and_yield(m_conn)
+        cut.stub(:user_root_dn).and_return("ou=users,dc=com")
+               
+        expect(cut.unique_attribute_available?(nil, 'mail', 'joe@gmail.com')).to be_true
+      end
+
+      it "should return false if attribute value exists on any other user's entry except the one with the specified uid" do
+        m_conn = double("LDAP::Connection")
+        m_conn.
+          should_receive(:search).
+          with('ou=users,dc=com', LDAP::LDAP_SCOPE_SUBTREE, '(&(!(uid=c798f3a7-cb8f-4e15-a31f-4f942cab8b86))(mail=joe@gmail.com))', %w{ uid }).
+          and_yield({})
+
+        cut.should_receive(:as_manager).and_yield(m_conn)
+        cut.stub(:user_root_dn).and_return("ou=users,dc=com")
+               
+        expect(cut.unique_attribute_available?('c798f3a7-cb8f-4e15-a31f-4f942cab8b86', 'mail', 'joe@gmail.com')).to be_false
+      end
+
+      it "should return true if attribute value does not exist on any other user's entry except the one with the specified uid" do
+        m_conn = double("LDAP::Connection")
+        m_conn.
+          should_receive(:search).
+          with('ou=users,dc=com', LDAP::LDAP_SCOPE_SUBTREE, '(&(!(uid=c798f3a7-cb8f-4e15-a31f-4f942cab8b86))(mail=joe@gmail.com))', %w{ uid })
+
+        cut.should_receive(:as_manager).and_yield(m_conn)
+        cut.stub(:user_root_dn).and_return("ou=users,dc=com")
+               
+        expect(cut.unique_attribute_available?('c798f3a7-cb8f-4e15-a31f-4f942cab8b86', 'mail', 'joe@gmail.com')).to be_true
+      end
+
+    end
+
     context '#user_search' do
 
       it "return the user's ldap attributes if bound and found" do
@@ -60,16 +114,39 @@ describe LdapBinder::TestManagerActions do
       it "should raise and exception if manager can't be bound" do
         search_criteria = { login: 'joe' }
 
-        # m_conn = double("LDAP::Connection")
-        # m_conn.
-        #   should_receive(:search).
-        #   with("ou=users,dc=com",LDAP::LDAP_SCOPE_SUBTREE, '(cn=joe)', LdapBinder::ManagerActions::SEARCH_RETURN_ATTRS)
-
         cut.stub(:as_manager).and_raise(LDAP::Error)
-        # cut.stub(:user_root_dn).and_return("ou=users,dc=com")
-        # cut.stub(:ldap_user_search_criteria).with(search_criteria).and_return('(cn=joe)')
 
         expect { cut.user_search(search_criteria) }.to raise_error(LDAP::Error)
+      end
+
+    end
+
+    context '#all_uuids' do
+
+      it "should return all users that have the specified uuids" do
+        uuids = [ 'ee7261ef-d739-49a9-a22d-a42ef26a35cb',
+                  'dd0064fa-9ee5-4ab4-a2ab-8b470f3efd44', 
+                  '2cae41db-fbc4-40a1-ad9b-efcbaf6daba6' ]
+
+        m_entry1 = double("LDAP::Entry")
+        m_entry1.should_receive(:to_hash).and_return({})
+        m_entry2 = double("LDAP::Entry")
+        m_entry2.should_receive(:to_hash).and_return({})
+        m_entry3 = double("LDAP::Entry")
+        m_entry3.should_receive(:to_hash).and_return({})
+
+        m_conn = double("LDAP::Connection")
+        m_conn.
+          should_receive(:search).
+          with("ou=users,dc=com", LDAP::LDAP_SCOPE_SUBTREE, "(|(uid=ee7261ef-d739-49a9-a22d-a42ef26a35cb)(uid=dd0064fa-9ee5-4ab4-a2ab-8b470f3efd44)(uid=2cae41db-fbc4-40a1-ad9b-efcbaf6daba6))", %w{ cn mail sn givenName description uid destinationIndicator pwdChangedTime pwdHistory pwdFailureTime createTimestamp ou businessCategory }).
+          and_yield(m_entry1).
+          and_yield(m_entry2).
+          and_yield(m_entry3)
+
+        cut.should_receive(:as_manager).and_yield(m_conn)
+        cut.stub(:user_root_dn).and_return("ou=users,dc=com")
+
+        expect(cut.all_uuids(uuids).size).to eq(3)
       end
 
     end
@@ -634,6 +711,11 @@ describe LdapBinder::TestManagerActions do
       it "should return an account_uid/token search filter if :token and :account_uid is in the search criteria, but not :uuid or :login " do
         search_criteria = { account_uid: 'def321', token: 'aabbcc' }
         expect(cut.send(:ldap_user_search_criteria, search_criteria)).to eq("(&(userPassword=aabbcc)(businessCategory=def321))")
+      end
+
+      it "should return an email search filter if :email is in the search criteria, but not any other criteria" do
+        search_criteria = { email: 'joe@gmail.com' }
+        expect(cut.send(:ldap_user_search_criteria, search_criteria)).to eq("(mail=joe@gmail.com)")
       end
 
       it "should raise an exception if no valid criteria is found" do

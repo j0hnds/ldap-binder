@@ -18,8 +18,11 @@ module LdapBinder
       if user_data
         # Found the user
         perform_user_bind(user_data, authentication_criteria)
+        # Successful bind (no exception)
+        # Refresh the user data based on successful login
+        user_data = user_search(uuid: user_data['uid'].first)
       end
-      user_data
+      user_data.nil? ? nil : user_data.merge(status: true)
     end
 
     #
@@ -54,7 +57,7 @@ module LdapBinder
         yield conn
       end
     rescue LDAP::Error => ex
-      raise BindError.new(ex), "Error binding manager"
+      raise BindError.new(nil, ex), "Error binding manager"
     end
 
     #
@@ -69,7 +72,8 @@ module LdapBinder
       raise NoAuthStrategyFoundError.new(criteria), "No auth strategy found for criteria" if strategy.nil?
       send(strategy[:method], user_data, criteria)
     rescue LDAP::Error => ex
-      raise BindError.new(ex), "Error binding user"
+      user_data = user_search(uuid: user_data['uid'].first)
+      raise BindError.new(user_data.merge!(status: false), ex), "Error binding user"
     end
 
     #

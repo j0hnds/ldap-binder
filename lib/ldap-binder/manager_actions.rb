@@ -294,7 +294,7 @@ module LdapBinder
         yield conn
       end
     rescue LDAP::Error => ex
-      raise BindError.new(ex), "Error binding manager"
+      raise BindError.new(nil, ex), "Error binding manager"
     end
     
     # TODO: Refactor target
@@ -305,8 +305,8 @@ module LdapBinder
         "(cn=#{search_criteria[:login]})"
       elsif search_criteria.has_key?(:token)
         filter = "(userPassword=#{search_criteria[:token]})"
-        if search_criteria.has_key?(:account_uid)
-          filter = "(&#{filter}(businessCategory=#{search_criteria[:account_uid]}))"
+        if search_criteria.has_key?(:account_uid) && !search_criteria[:account_uid].nil?
+          filter = "(&#{filter}(ou=#{search_criteria[:account_uid]}))"
         end
         filter
       elsif search_criteria.has_key?(:email)

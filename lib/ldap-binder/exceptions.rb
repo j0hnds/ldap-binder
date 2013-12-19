@@ -12,9 +12,10 @@ module LdapBinder
 
   class BindError < StandardError
 
-    attr_reader :inner_exception
+    attr_reader :inner_exception, :user_data
 
-    def initialize(inner_exception=nil)
+    def initialize(user_data=nil, inner_exception=nil)
+      @user_data = user_data
       @inner_exception = inner_exception
     end
 

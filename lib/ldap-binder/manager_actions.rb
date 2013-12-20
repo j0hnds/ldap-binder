@@ -218,8 +218,8 @@ module LdapBinder
         # No point in doing anything unless at least one of the two
         # is set to something
         entry = []
-        entry << LDAP.mod(LDAP::LDAP_MOD_ADD, 'businessCategory', [ application ]) unless application.nil?
-        entry << LDAP.mod(LDAP::LDAP_MOD_ADD, 'ou', [ account ]) unless account.nil?
+        entry << LDAP.mod(LDAP::LDAP_MOD_ADD, 'businessCategory', application.is_a?(Array) ? application : [ application ]) unless application.nil?
+        entry << LDAP.mod(LDAP::LDAP_MOD_ADD, 'ou', account.is_a?(Array) ? account : [ account ]) unless account.nil?
         as_manager do | conn |
           conn.modify(dn, entry)
         end
@@ -259,8 +259,16 @@ module LdapBinder
       num_applications = ldap_applications.size
 
       # Cool, we found the user, now let's see what's what
-      ldap_accounts.delete(account) unless account.nil?
-      ldap_applications.delete(application) unless application.nil?
+      if account.is_a?(Array)
+        application.compact.each { | acct | ldap_accounts.delete(acct) }
+      else
+        ldap_accounts.delete(account) unless account.nil?
+      end
+      if application.is_a?(Array)
+        application.compact.each { | app | ldap_applications.delete(app) }
+      else
+        ldap_applications.delete(application) unless application.nil?
+      end
 
       if ldap_accounts.size < num_accounts || ldap_applications.size < num_applications
         # Something changed

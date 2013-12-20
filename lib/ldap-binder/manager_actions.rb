@@ -384,7 +384,7 @@ module LdapBinder
 
       non_empty_attributes(user_attributes).each do | attr, value |
         next unless USER_ATTR_MAPPING.has_key?(attr)
-        entry << LDAP.mod(LDAP::LDAP_MOD_ADD, USER_ATTR_MAPPING[attr][:ldap], [ user_attributes[attr] ])
+        entry << LDAP.mod(LDAP::LDAP_MOD_ADD, USER_ATTR_MAPPING[attr][:ldap], user_attributes[attr].is_a?(Array) ? user_attributes[attr] : [ user_attributes[attr] ])
       end
 
       entry          

@@ -7,7 +7,7 @@ module LdapBinder
     #
     def prepare_password(password, salt=create_salt)
       pwdigest = Digest::SHA1.digest("#{password}#{salt}")
-      "{SSHA}" + Base64.encode64("#{pwdigest}#{salt}").chomp!.tap { | s | puts "HASH = #{s}" }
+      "{SSHA}" + Base64.encode64("#{pwdigest}#{salt}").chomp! # .tap { | s | puts "HASH = #{s}" }
     end
 
     #

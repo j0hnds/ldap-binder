@@ -383,7 +383,7 @@ module LdapBinder
 
     def non_empty_attributes(user_attributes)
       user_attributes.select do | key, value | 
-        (!value.nil?) && (value.instance_of?(String) ? value.size > 0 : true)
+        !(value.nil? || (value.instance_of?(String) && value.size == 0) || (value.instance_of?(Array) && value.compact.size == 0))
       end
     end
 

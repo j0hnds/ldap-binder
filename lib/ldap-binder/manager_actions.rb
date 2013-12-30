@@ -71,6 +71,26 @@ module LdapBinder
       available
     end
 
+    def all_for_attribute(attr_name, attr_value)
+      ldap_attr = USER_ATTR_MAPPING[attr_name][:ldap]
+      if attr_value.is_a?(Array)
+        crit = attr_value.reduce('') { | a, value | a << "(#{ldap_attr}=#{value})" }
+        criteria = "(|#{crit})"
+      else
+        criteria = "(#{ldap_attr}=#{attr_value})"
+      end
+      users = []
+      as_manager do | conn |
+        conn.search(user_root_dn,
+                    LDAP::LDAP_SCOPE_SUBTREE,
+                    criteria,
+                    SEARCH_RETURN_ATTRS) do | entry |
+          users << entry.to_hash
+        end
+      end
+      users
+    end
+
     def all_uuids(uuids)
       uid_criteria = uuids.inject('') { | a, uuid | a << "(uid=#{uuid})" }
       any_uid = "(|#{uid_criteria})"
@@ -117,7 +137,7 @@ module LdapBinder
         login = user_info[:login]
         dn = dn_from_login(login)
         uuid = create_unique_uuid(conn)
-        password = user_info.has_key?(:salt) ? user_info[:password] : prepare_password(user_info[:password], create_salt(login))
+        password = user_info.has_key?(:salt) || user_info.has_key?(:token) ? user_info[:password] : prepare_password(user_info[:password], create_salt(login))
 
         entry_set = attribute_entries_for_add(user_info.merge(password: password, uuid: uuid))
 
@@ -162,11 +182,16 @@ module LdapBinder
         update_entry(new_entry, user_info, user_attributes, 'sn', :last)
         update_entry(new_entry, user_info, user_attributes, 'mail', :email)
         update_entry(new_entry, user_info, user_attributes, 'description', :note)
+        update_entry(new_entry, user_info, user_attributes, 'ou', :account_uid)
 
         if user_attributes.has_key?(:password)
           # A little different. If the password is not present, we don't do anything. If it
           # is, we replace it with the new one.
-          new_entry << LDAP.mod(LDAP::LDAP_MOD_REPLACE, 'userPassword', [ prepare_password(user_attributes[:password], create_salt(user_attributes[:login])) ])
+          if user_attributes.has_key?(:token)
+            new_entry << LDAP.mod(LDAP::LDAP_MOD_REPLACE, 'userPassword', [ user_attributes[:password] ])
+          else
+            new_entry << LDAP.mod(LDAP::LDAP_MOD_REPLACE, 'userPassword', [ prepare_password(user_attributes[:password], create_salt(user_attributes[:login])) ])
+          end
         end
         
         # First, modify the user's attributes as long as we have the user's
@@ -333,10 +358,10 @@ module LdapBinder
       if user_attrs.has_key?(user_key)
         if ldap_attrs.has_key?(ldap_key)
           if user_attrs[user_key] != ldap_attrs[ldap_key].first
-            entry << LDAP.mod(LDAP::LDAP_MOD_REPLACE, ldap_key, [ user_attrs[user_key] ])
+            entry << LDAP.mod(LDAP::LDAP_MOD_REPLACE, ldap_key, user_attrs[user_key].is_a?(String) ? [ user_attrs[user_key] ] : user_attrs[user_key] )
           end
         else
-          entry << LDAP.mod(LDAP::LDAP_MOD_ADD, ldap_key, [ user_attrs[user_key] ])
+          entry << LDAP.mod(LDAP::LDAP_MOD_ADD, ldap_key, user_attrs[user_key].is_a?(String) ? [ user_attrs[user_key] ] : user_attrs[user_key] )
         end
       else
         if ldap_attrs.has_key?(ldap_key)
